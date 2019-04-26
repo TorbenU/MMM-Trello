@@ -36,7 +36,7 @@ Module.register("MMM-Trello", {
         this.listContent = [];
         this.checklistData = {};
 
-        this.activeItem = 0;
+        this.indexActiveCard = 0;
 
         this.loaded = false;
         this.error = false;
@@ -67,7 +67,7 @@ Module.register("MMM-Trello", {
             if (self.pause) {
                 return;
             }
-            self.activeItem++;
+            self.indexActiveCard++;
             self.updateDom(self.config.animationSpeed);
         }, this.config.updateInterval);
     },
@@ -113,71 +113,15 @@ Module.register("MMM-Trello", {
     getDom: function () {
         var wrapper = document.createElement("div");
 
-        if (this.activeItem >= this.listContent.length) {
-            this.activeItem = 0;
+        if (this.indexActiveCard >= this.listContent.length) {
+            this.indexActiveCard = 0;
         }
 
         if (this.loaded) {
-            if (this.listContent.length === 0) {
-                wrapper.innerHTML = this.translate("NO_CARDS");
-                wrapper.className = "small dimmed";
-            } else {
-                var content, card, startat = 0, endat = this.listContent.length - 1;
-                if (!this.config.wholeList) {
-                    startat = this.activeItem;
-                    endat = this.activeItem;
-                }
-                for (card = startat; card <= endat; card++) {
-                    if (this.config.showTitle || this.config.showDueDate) {
-                        var name = document.createElement("div");
-                        name.className = "medium light " + (this.config.isCompleted ? "is-completed" : "bright");
-
-                        content = "";
-                        if (this.config.showTitle) {
-                            content = this.listContent[card].name;
-                        }
-
-                        if (this.config.showDueDate && this.listContent[card].due) {
-                            if (this.config.showTitle) {
-                                content += " (" + moment(this.listContent[card].due).fromNow() + ")";
-                            }
-                            else {
-                                content += moment(this.listContent[card].due).fromNow() + ":";
-                            }
-                        }
-
-                        name.innerHTML = content;
-
-                        wrapper.appendChild(name);
-                    }
-                    if(this.config.showDescription){
-                        var desc = document.createElement("div");
-                        desc.className = "small light " + (this.config.isCompleted ? "is-completed dimmed" : "");
-
-                        content = this.listContent[card].desc;
-
-                        if (this.config.showLineBreaks) {
-                            var lines = content.split('\n');
-                            for (var i in lines) {
-                                var lineElement = document.createElement("div");
-                                lineElement.innerHTML = lines[i];
-                                desc.appendChild(lineElement);
-                            }
-                        }
-                        else {
-                            desc.innerHTML = content;
-                        }
-                        wrapper.appendChild(desc);
-                    }
-                    if (this.config.showChecklists) {
-                        var checklistWrapper = document.createElement("div");
-                        checklistWrapper.className = "checklist-wrapper";
-                        this.getChecklistDom(checklistWrapper, card);
-                        wrapper.appendChild(checklistWrapper);
-                    }
-                }
-            }
+            // loaded => create DOM
+            createDom(wrapper);
         } else {
+            // != loaded => show errors
             if (this.error) {
                 wrapper.innerHTML = "Please check your config file, an error occured: " + this.errorMessage;
                 wrapper.className = "xsmall dimmed";
@@ -186,8 +130,14 @@ Module.register("MMM-Trello", {
                 wrapper.className = "small dimmed";
             }
         }
-
         return wrapper;
+    },
+
+    getWrapperChecklist: function (card) {
+        var wrapperChecklist = document.createElement("div");
+        wrapperChecklist.className = "checklist-wrapper";
+        this.getChecklistDom(wrapperChecklist, card);
+        return wrapperChecklist;
     },
 
     /* getChecklistDom()
@@ -210,6 +160,7 @@ Module.register("MMM-Trello", {
                     wrapper.appendChild(titleElement);
                 }
 
+                // Iterate over checklist items
                 for (var item in checklist.checkItems) {
                     var itemWrapper = document.createElement("div");
                     itemWrapper.className = "small light checklist-item";
@@ -230,7 +181,7 @@ Module.register("MMM-Trello", {
             }
         }
     },
-
+    
     /* setTrelloConfig()
      * intializes trello backend
      */
@@ -243,7 +194,7 @@ Module.register("MMM-Trello", {
     },
 
     /* requestUpdate()
-     * request a list content update
+    * request a list content update
      */
     requestUpdate: function () {
         this.sendSocketNotification("REQUEST_LIST_CONTENT", {list: this.config.list, id: this.identifier});
@@ -291,3 +242,75 @@ Module.register("MMM-Trello", {
         }
     }
 });
+
+function createDom(wrapper) {
+    if (this.listContent.length === 0) {
+        wrapper.innerHTML = this.translate("NO_CARDS");
+        wrapper.className = "small dimmed";
+    }
+    else {
+        var content, 
+            i, 
+            start = 0, 
+            end = this.listContent.length;
+
+        if (!this.config.wholeList) {
+            // Only create the dom for the active card
+            start = this.indexActiveCard;
+            end = this.indexActiveCard;
+        }
+        
+        for (i = start; i < end; i++) {
+            var wrapperCardContent = document.createElement("div");
+            wrapperCardContent.className = "medium light " + (this.config.isCompleted ? "is-completed" : "bright");
+
+            // get content title
+            if (this.config.showTitle) {
+                title = this.config.showTitle ? getTitle(i) : "";
+            }
+
+            var dueDate = "";
+            if (this.config.showDueDate && this.listContent[i].due) {
+                dueDate = moment(this.listContent[i].due).fromNow()
+            }
+            
+            content += title + "(" + dueDate + ")"
+
+            wrapperCardContent.innerHTML = content;
+            wrapper.appendChild(wrapperCardContent);
+
+            if (this.config.showDescription) {
+                var wrapperCardDescription;
+                ({ wrapperCardDescription, name } = getWrapperCardDescription(name, i));
+                wrapper.appendChild(wrapperCardDescription);
+            }
+            if (this.config.showChecklists) {
+                wrapper.appendChild(getElementChecklist(i));
+            }
+        }
+    }
+}
+
+function getTitle(card) {
+        return this.listContent[card].name;
+}
+
+function getWrapperCardDescription(content, card) {
+    var wrapperCardDescription = document.createElement("div");
+    wrapperCardDescription.className = "small light " + (this.config.isCompleted ? "is-completed dimmed" : "");
+    content = this.listContent[card].desc;
+    if (this.config.showLineBreaks) {
+        var lines = content.split('\n');
+        for (var i in lines) {
+            var lineElement = document.createElement("div");
+            lineElement.innerHTML = lines[i];
+            wrapperCardDescription.appendChild(lineElement);
+        }
+    }
+    else {
+        wrapperCardDescription.innerHTML = content;
+    }
+    return { wrapperCardDescription, content };
+}
+
+
