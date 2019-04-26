@@ -33,7 +33,7 @@ Module.register("MMM-Trello", {
 
         moment.locale(this.config.language);
 
-        this.listContent = [];
+        this.listOfCards = [];
         this.checklistData = {};
 
         this.indexActiveCard = 0;
@@ -113,13 +113,13 @@ Module.register("MMM-Trello", {
     getDom: function () {
         var wrapper = document.createElement("div");
 
-        if (this.indexActiveCard >= this.listContent.length) {
+        if (this.indexActiveCard >= this.listOfCards.length) {
             this.indexActiveCard = 0;
         }
 
         if (this.loaded) {
             // loaded => create DOM
-            createDom(wrapper);
+            this.createDom(wrapper);
         } else {
             // != loaded => show errors
             if (this.error) {
@@ -149,7 +149,7 @@ Module.register("MMM-Trello", {
             "complete": "fa-check-square-o"
         });
 
-        var checklistIDs = this.listContent[card].idChecklists;
+        var checklistIDs = this.listOfCards[card].idChecklists;
         for (var id in checklistIDs) {
             if (checklistIDs[id] in this.checklistData) {
                 var checklist = this.checklistData[checklistIDs[id]];
@@ -230,7 +230,7 @@ Module.register("MMM-Trello", {
         if (notification === "LIST_CONTENT") {
             this.error = false;
 
-            this.listContent = payload.data;
+            this.listOfCards = payload.data;
 
             if (!this.loaded) {
                 this.loaded = true;
@@ -240,77 +240,80 @@ Module.register("MMM-Trello", {
         if (notification === "CHECK_LIST_CONTENT") {
             this.checklistData[payload.data.id] = payload.data;
         }
-    }
-});
+    },
 
-function createDom(wrapper) {
-    if (this.listContent.length === 0) {
-        wrapper.innerHTML = this.translate("NO_CARDS");
-        wrapper.className = "small dimmed";
-    }
-    else {
-        var content, 
-            i, 
-            start = 0, 
-            end = this.listContent.length;
-
-        if (!this.config.wholeList) {
-            // Only create the dom for the active card
-            start = this.indexActiveCard;
-            end = this.indexActiveCard;
+    createDom: function (wrapper) {
+        if (this.listOfCards.length === 0) {
+            wrapper.innerHTML = this.translate("NO_CARDS");
+            wrapper.className = "small dimmed";
         }
-        
-        for (i = start; i < end; i++) {
-            var wrapperCardContent = document.createElement("div");
-            wrapperCardContent.className = "medium light " + (this.config.isCompleted ? "is-completed" : "bright");
-
-            // get content title
-            if (this.config.showTitle) {
-                title = this.config.showTitle ? getTitle(i) : "";
-            }
-
-            var dueDate = "";
-            if (this.config.showDueDate && this.listContent[i].due) {
-                dueDate = moment(this.listContent[i].due).fromNow()
+        else {
+            var content, 
+                i, 
+                start = 0, 
+                end = this.listOfCards.length;
+    
+            if (!this.config.wholeList) {
+                // Only create the dom for the active card
+                start = this.indexActiveCard;
+                end = this.indexActiveCard;
             }
             
-            content += title + "(" + dueDate + ")"
-
-            wrapperCardContent.innerHTML = content;
-            wrapper.appendChild(wrapperCardContent);
-
-            if (this.config.showDescription) {
-                var wrapperCardDescription;
-                ({ wrapperCardDescription, name } = getWrapperCardDescription(name, i));
-                wrapper.appendChild(wrapperCardDescription);
-            }
-            if (this.config.showChecklists) {
-                wrapper.appendChild(getElementChecklist(i));
+            for (i = start; i < end; i++) {
+                var wrapperCardContent = document.createElement("div");
+                wrapperCardContent.className = "medium light " + (this.config.isCompleted ? "is-completed" : "bright");
+    
+                // get content title
+                if (this.config.showTitle) {
+                    title = this.config.showTitle ? this.getTitle(i) : "";
+                }
+    
+                var dueDate = "";
+                if (this.config.showDueDate && this.listOfCards[i].due) {
+                    dueDate = moment(this.listOfCards[i].due).fromNow()
+                }
+                
+                content += title + "(" + dueDate + ")"
+    
+                wrapperCardContent.innerHTML = content;
+                wrapper.appendChild(wrapperCardContent);
+    
+                if (this.config.showDescription) {
+                    var wrapperCardDescription;
+                    ({ wrapperCardDescription, name } = this.getWrapperCardDescription(name, i));
+                    wrapper.appendChild(wrapperCardDescription);
+                }
+                if (this.config.showChecklists) {
+                    wrapper.appendChild(this.getWrapperChecklist(i));
+                }
             }
         }
-    }
-}
-
-function getTitle(card) {
-        return this.listContent[card].name;
-}
-
-function getWrapperCardDescription(content, card) {
-    var wrapperCardDescription = document.createElement("div");
-    wrapperCardDescription.className = "small light " + (this.config.isCompleted ? "is-completed dimmed" : "");
-    content = this.listContent[card].desc;
-    if (this.config.showLineBreaks) {
-        var lines = content.split('\n');
-        for (var i in lines) {
-            var lineElement = document.createElement("div");
-            lineElement.innerHTML = lines[i];
-            wrapperCardDescription.appendChild(lineElement);
+    },
+    
+    getTitle: function (card) {
+            return this.listOfCards[card].name;
+    },
+    
+    getWrapperCardDescription: function(content, card) {
+        var wrapperCardDescription = document.createElement("div");
+        wrapperCardDescription.className = "small light " + (this.config.isCompleted ? "is-completed dimmed" : "");
+        content = this.listOfCards[card].desc;
+        if (this.config.showLineBreaks) {
+            var lines = content.split('\n');
+            for (var i in lines) {
+                var lineElement = document.createElement("div");
+                lineElement.innerHTML = lines[i];
+                wrapperCardDescription.appendChild(lineElement);
+            }
         }
+        else {
+            wrapperCardDescription.innerHTML = content;
+        }
+        return { wrapperCardDescription, content };
     }
-    else {
-        wrapperCardDescription.innerHTML = content;
-    }
-    return { wrapperCardDescription, content };
-}
+    
+
+});
+
 
 
